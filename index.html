@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LPG Monitoring System</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    .status-card {
+      padding: 10px;
+      margin: 10px 0;
+      border-left: 5px solid gray;
+      border-radius: 5px;
+      background: #f9f9f9;
+    }
+    .connected {
+      border-left-color: green;
+      background-color: #e8f5e9;
+    }
+    .disconnected {
+      border-left-color: red;
+      background-color: #ffebee;
+    }
+    .leak-detected {
+      background-color: #fff3cd;
+      border-left-color: #ffc107;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink {
+      50% { background-color: #ffeeba; }
+    }
+    .data-display {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    .data-box {
+      flex: 1;
+      margin: 0 5px;
+      padding: 10px;
+      background-color: #f1f1f1;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .data-value {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .data-label {
+      font-size: 14px;
+      color: #555;
+    }
+    .progress-container {
+      margin-top: 20px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 25px;
+      background: #e0e0e0;
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0;
+      background: #17a2b8;
+      text-align: center;
+      color: white;
+      font-weight: bold;
+      transition: width 0.5s;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 10px 5px;
+      border: none;
+      border-radius: 5px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #pdfContainer {
+      margin-top: 20px;
+      background: #f8f8f8;
+      padding: 15px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>LPG Monitoring System</h1>
+
+    <div id="connectionStatus" class="status-card disconnected">
+      <h3>Bluetooth Status: Disconnected</h3>
+      <button id="connectBtn">Connect Bluetooth</button>
+    </div>
+
+    <div class="data-display">
+      <div class="data-box">
+        <div class="data-label">Current Weight</div>
+        <div id="weightValue" class="data-value">0.00 kg</div>
+      </div>
+      <div class="data-box">
+        <div class="data-label">Remaining</div>
+        <div id="percentageValue" class="data-value">0%</div>
+      </div>
+      <div id="leakStatus" class="data-box">
+        <div class="data-label">Leak Status</div>
+        <div id="leakValue" class="data-value">No leak</div>
+      </div>
+    </div>
+
+    <div class="progress-container">
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill">0%</div>
+      </div>
+    </div>
+
+    <div>
+      <button id="tareBtn">Set Tare Weight</button>
+      <button id="reportBtn">Generate Report</button>
+    </div>
+
+    <div id="pdfContainer" class="hidden">
+      <h3>Usage Report</h3>
+      <pre id="reportContent"></pre>
+      <button id="downloadBtn">Download PDF</button>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      tareWeight: 0,
+      maxWeight: 14,
+      currentWeight: 0,
+      isLeakDetected: false,
+      device: null,
+      server: null,
+      dataReceived: false
+    };
+
+    const weightValue = document.getElementById('weightValue');
+    const percentageValue = document.getElementById('percentageValue');
+    const leakValue = document.getElementById('leakValue');
+    const leakStatus = document.getElementById('leakStatus');
+    const progressFill = document.getElementById('progressFill');
+    const connectBtn = document.getElementById('connectBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const tareBtn = document.getElementById('tareBtn');
+    const reportBtn = document.getElementById('reportBtn');
+    const reportContent = document.getElementById('reportContent');
+    const pdfContainer = document.getElementById('pdfContainer');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    connectBtn.onclick = async () => {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ['battery_service']
+        });
+        state.device = device;
+        const server = await device.gatt.connect();
+        state.server = server;
+        connectionStatus.className = 'status-card connected';
+        connectionStatus.querySelector('h3').textContent = `Connected to ${device.name || 'Device'}`;
+        connectBtn.textContent = 'Disconnect';
+        simulateData();
+      } catch (err) {
+        alert('Bluetooth Error: ' + err);
+      }
+    };
+
+    function simulateData() {
+      setInterval(() => {
+        state.dataReceived = true;
+        state.currentWeight = 4 + Math.random() * 10;
+        state.isLeakDetected = Math.random() < 0.1;
+        updateUI();
+      }, 2000);
+    }
+
+    function updateUI() {
+      if (!state.dataReceived) return;
+      const net = state.currentWeight - state.tareWeight;
+      const percentage = Math.max(0, Math.min(100, (net / state.maxWeight) * 100));
+
+      weightValue.textContent = `${net.toFixed(2)} kg`;
+      percentageValue.textContent = `${percentage.toFixed(1)}%`;
+      progressFill.style.width = `${percentage}%`;
+      progressFill.textContent = `${percentage.toFixed(1)}%`;
+
+      if (state.isLeakDetected) {
+        leakValue.textContent = 'LEAK DETECTED!';
+        leakStatus.className = 'data-box leak-detected';
+        alert('WARNING: Gas leak detected!');
+      } else {
+        leakValue.textContent = 'No leak';
+        leakStatus.className = 'data-box';
+      }
+    }
+
+    tareBtn.onclick = () => {
+      const input = prompt("Enter empty cylinder weight in kg:", state.tareWeight);
+      if (input !== null && !isNaN(input)) {
+        state.tareWeight = parseFloat(input);
+        updateUI();
+      }
+    };
+
+    reportBtn.onclick = () => {
+      const now = new Date();
+      const net = state.currentWeight - state.tareWeight;
+      const report = `LPG Usage Report\nDate: ${now.toLocaleString()}\n\nTare Weight: ${state.tareWeight} kg\nNet Weight: ${net.toFixed(2)} kg\nLeak: ${state.isLeakDetected ? 'Yes' : 'No'}`;
+      reportContent.textContent = report;
+      pdfContainer.classList.remove('hidden');
+    };
+
+    downloadBtn.onclick = () => {
+      const blob = new Blob([reportContent.textContent], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'LPG_Report.txt';
+      a.click();
+    };
+  </script>
+</body>
+</html>
