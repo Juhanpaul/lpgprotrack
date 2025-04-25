@@ -1,201 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LPG Monitoring System</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            padding: 20px;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .container {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 600px;
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        .status-card {
-            margin: 20px 0;
-            padding: 10px;
-            border-radius: 8px;
-            background-color: #f1f1f1;
-        }
-        .status-card.connected {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .status-card.disconnected {
-            background-color: #FF6347;
-            color: white;
-        }
-        .button {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 10px;
-        }
-        .button:hover {
-            background-color: #0056b3;
-        }
-        select {
-            width: 100%;
-            padding: 10px;
-            margin-top: 20px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        .hidden {
-            display: none;
-        }
-        #gasInfo {
-            font-size: 18px;
-            margin-top: 20px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LPG Monitoring System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f4f8;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background-color: white;
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      width: 90%;
+      max-width: 500px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px 0;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .status {
+      margin: 15px 0;
+      font-size: 16px;
+      color: #555;
+    }
+    .alert {
+      color: red;
+      font-weight: bold;
+    }
+    .warning {
+      color: orange;
+    }
+    .safe {
+      color: green;
+    }
+  </style>
 </head>
 <body>
-
-<div class="container">
+  <div class="container">
     <h1>LPG Monitoring System</h1>
-    <div class="status-card disconnected" id="connectionStatus">
-        <h3>Bluetooth Status: Disconnected</h3>
-    </div>
+    <button onclick="connectBluetooth()">Connect Bluetooth</button>
+    <div class="status" id="deviceName">Device: Not connected</div>
+    <div class="status" id="weightDisplay">Weight: -- kg</div>
+    <div class="status" id="percentageDisplay">LPG Remaining: --%</div>
+    <div class="status" id="leakStatus">Leak Status: --</div>
+    <button onclick="setTareWeight()">Set Tare Weight (Empty Cylinder)</button>
+    <button onclick="generatePDF()">Generate PDF Report</button>
+  </div>
 
-    <button id="connectBtn" class="button" onclick="toggleBluetoothConnection()">Connect Bluetooth</button>
-
-    <select id="deviceList" class="hidden"></select>
-
-    <div id="gasInfo">
-        <p>Gas Level: <span id="gasLevel">100%</span></p>
-        <p>Weight: <span id="weight">Full</span></p>
-    </div>
-
-    <button id="pdfBtn" class="button" onclick="generatePDF()">Generate PDF</button>
-</div>
-
-<script>
-    const connectionStatus = document.getElementById('connectionStatus');
-    const connectBtn = document.getElementById('connectBtn');
-    const deviceList = document.getElementById('deviceList');
-    const gasLevelDisplay = document.getElementById('gasLevel');
-    const weightDisplay = document.getElementById('weight');
-
-    let state = {
-        server: null,
-        device: null,
-        characteristic: null,
-        gasLevel: 100, // Example gas level
-        weight: 'Full', // Example weight description
-        connectionTime: null
-    };
-
-    // Bluetooth Functions
-    async function toggleBluetoothConnection() {
-        if (state.server) {
-            await disconnectBluetooth();
-        } else {
-            await connectBluetooth();
-        }
-    }
+  <script>
+    let tareWeight = 0;
+    let fullWeight = 14.2; // Default full cylinder weight
+    let device;
+    let characteristic;
 
     async function connectBluetooth() {
-        try {
-            // Request Bluetooth device and specify the filter (show names)
-            const device = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,  // Accept all devices
-                optionalServices: ['generic_access'],  // Optional Bluetooth services
-            });
+      try {
+        const options = {
+          filters: [
+            { namePrefix: "HC" },
+            { namePrefix: "ESP" }
+          ],
+          optionalServices: ['battery_service', 'device_information']
+        };
 
-            // If device found, display name in the dropdown
-            if (device) {
-                const option = document.createElement("option");
-                option.value = device.name;
-                option.textContent = device.name || 'Unknown Device';
-                deviceList.appendChild(option);
+        device = await navigator.bluetooth.requestDevice(options);
+        document.getElementById('deviceName').textContent = `Device: ${device.name || "Unnamed Device"}`;
+        // Simulating connection logic
+        console.log("Connected to:", device.name);
 
-                // Show the device list and connect to it
-                deviceList.classList.remove("hidden");
-
-                // Connect to the first device (for simplicity)
-                state.device = device;
-                state.server = await state.device.gatt.connect();
-                connectionStatus.className = 'status-card connected';
-                connectionStatus.querySelector('h3').textContent = `Bluetooth Status: Connected to ${state.device.name}`;
-                connectBtn.textContent = 'Disconnect';
-                state.connectionTime = new Date();
-                startSimulatedData();
-            }
-
-        } catch (error) {
-            console.error('Bluetooth error:', error);
-            alert(`Bluetooth connection failed: ${error}`);
-        }
+        // Simulate receiving data every 5 seconds
+        setInterval(mockReceiveData, 5000);
+      } catch (error) {
+        console.error("Bluetooth connection failed:", error);
+      }
     }
 
-    async function disconnectBluetooth() {
-        if (state.server) {
-            await state.server.disconnect();
-            state.server = null;
-            state.device = null;
-        }
-        connectionStatus.className = 'status-card disconnected';
-        connectionStatus.querySelector('h3').textContent = 'Bluetooth Status: Disconnected';
-        connectBtn.textContent = 'Connect Bluetooth';
-        stopSimulatedData();
+    function setTareWeight() {
+      tareWeight = prompt("Enter current weight as tare (empty cylinder):");
+      tareWeight = parseFloat(tareWeight);
+      if (!isNaN(tareWeight)) {
+        alert(`Tare weight set to ${tareWeight} kg`);
+      } else {
+        alert("Invalid input");
+      }
     }
 
-    // Simulating the LPG gas and weight updates (for demo purposes)
-    function startSimulatedData() {
-        setInterval(() => {
-            // Simulate gas level decreasing over time
-            if (state.gasLevel > 5) {
-                state.gasLevel -= 1;
-            }
-            gasLevelDisplay.textContent = `${state.gasLevel}%`;
+    function mockReceiveData() {
+      // Simulating random weight and gas detection values
+      const rawWeight = Math.random() * fullWeight; // random weight
+      const gasDetected = Math.random() < 0.1; // 10% chance of leak
 
-            // Simulate weight decrease
-            if (state.gasLevel <= 30) {
-                weightDisplay.textContent = 'Low';
-            } else if (state.gasLevel <= 15) {
-                weightDisplay.textContent = 'Critical';
-            }
-        }, 1000);
+      const netWeight = rawWeight - tareWeight;
+      const percentage = Math.max(0, Math.min(100, (netWeight / fullWeight) * 100));
+
+      document.getElementById('weightDisplay').textContent = `Weight: ${netWeight.toFixed(2)} kg`;
+      document.getElementById('percentageDisplay').textContent = `LPG Remaining: ${percentage.toFixed(0)}%`;
+
+      let statusEl = document.getElementById('leakStatus');
+      if (gasDetected) {
+        statusEl.textContent = "Leak Status: Gas Leak Detected!";
+        statusEl.className = 'status alert';
+      } else if (percentage < 5) {
+        statusEl.textContent = "Leak Status: Gas less than 5%!";
+        statusEl.className = 'status alert';
+      } else if (percentage < 15) {
+        statusEl.textContent = "Leak Status: Gas less than 15%";
+        statusEl.className = 'status warning';
+      } else if (percentage < 30) {
+        statusEl.textContent = "Leak Status: Gas less than 30%";
+        statusEl.className = 'status warning';
+      } else {
+        statusEl.textContent = "Leak Status: Safe";
+        statusEl.className = 'status safe';
+      }
     }
 
-    function stopSimulatedData() {
-        clearInterval(startSimulatedData);
-    }
-
-    // PDF Generation Function
     function generatePDF() {
-        const doc = new jsPDF();
-        doc.text(`LPG Monitoring Report`, 20, 20);
-        doc.text(`Gas Level: ${state.gasLevel}%`, 20, 30);
-        doc.text(`Weight: ${weightDisplay.textContent}`, 20, 40);
-        doc.save('lpg-report.pdf');
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text("LPG Monitoring Report", 20, 20);
+      doc.setFontSize(12);
+
+      const device = document.getElementById('deviceName').textContent;
+      const weight = document.getElementById('weightDisplay').textContent;
+      const percentage = document.getElementById('percentageDisplay').textContent;
+      const status = document.getElementById('leakStatus').textContent;
+
+      doc.text(device, 20, 40);
+      doc.text(weight, 20, 50);
+      doc.text(percentage, 20, 60);
+      doc.text(status, 20, 70);
+
+      doc.save("LPG_Report.pdf");
     }
+  </script>
 
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </body>
 </html>
