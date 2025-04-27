@@ -1,162 +1,395 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LPG Monitoring System</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f0f4f8;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-    }
-    .container {
-      background-color: white;
-      margin-top: 30px;
-      padding: 20px;
-      border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      width: 90%;
-      max-width: 500px;
-    }
-    h1 {
-      text-align: center;
-      color: #333;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 10px 0;
-      background-color: #007BFF;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
-    .status {
-      margin: 15px 0;
-      font-size: 16px;
-      color: #555;
-    }
-    .alert {
-      color: red;
-      font-weight: bold;
-    }
-    .warning {
-      color: orange;
-    }
-    .safe {
-      color: green;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LPGProTrack</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --primary: #00ff88;
+            --secondary: #00c3ff;
+            --background: #0a192f;
+            --surface: #1a1a1a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--background);
+            color: white;
+            margin: 0;
+            padding: 1rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #333;
+            transition: all 0.3s ease;
+        }
+
+        .indicator.active {
+            background: var(--primary);
+            box-shadow: 0 0 8px var(--primary);
+        }
+
+        .sensor-status.active {
+            background: var(--secondary);
+            box-shadow: 0 0 8px var(--secondary);
+        }
+
+        .gauge-container {
+            width: 200px;
+            height: 100px;
+            margin: 2rem auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gauge-background {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            position: absolute;
+            bottom: -100px;
+            background: rgba(255,255,255,0.1);
+            clip-path: polygon(0 100%, 100% 100%, 100% 50%, 0 50%);
+        }
+
+        .gauge-fill {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            position: absolute;
+            bottom: -100px;
+            background: conic-gradient(from 180deg at 50% 50%, var(--primary) 0deg, #00ccff 180deg);
+            clip-path: polygon(0 100%, 100% 100%, 100% 50%, 0 50%);
+            transform: rotate(-90deg);
+            transform-origin: 50% 100%;
+            transition: transform 0.5s ease;
+        }
+
+        .gauge-center {
+            position: absolute;
+            width: 140px;
+            height: 70px;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .data-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 1rem 0;
+            font-size: 1.1rem;
+        }
+
+        .data-label {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .data-value {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #000;
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: #000;
+        }
+
+        .alert {
+            position: fixed;
+            top: 1rem;
+            right: -100%;
+            background: #ff4444;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            transition: right 0.4s ease;
+            display: none;
+        }
+
+        .alert.active {
+            right: 1rem;
+            display: flex;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>LPG Monitoring System</h1>
-    <button onclick="connectBluetooth()">Connect Bluetooth</button>
-    <div class="status" id="deviceName">Device: Not connected</div>
-    <div class="status" id="weightDisplay">Weight: -- kg</div>
-    <div class="status" id="percentageDisplay">LPG Remaining: --%</div>
-    <div class="status" id="leakStatus">Leak Status: --</div>
-    <button onclick="setTareWeight()">Set Tare Weight (Empty Cylinder)</button>
-    <button onclick="generatePDF()">Generate PDF Report</button>
-  </div>
+    <div class="container">
+        <div class="header">
+            <h1>LPGProTrack</h1>
+            <div class="status-indicators">
+                <!-- Status Indicators -->
+                <div class="indicator bluetooth-status"></div> <!-- Bluetooth connection status -->
+                <div class="indicator sensor-status"></div> <!-- Sensor activity status -->
+            </div>
+        </div>
 
-  <script>
-    let tareWeight = 0;
-    let fullWeight = 14.2; // Default full cylinder weight
-    let device;
-    let characteristic;
+        <div class="gauge-container">
+            <div class="gauge-background"></div>
+            <div class="gauge-fill" id="gaugeFill"></div>
+            <div class="gauge-center">
+                <span id="percentageValue">0%</span>
+            </div>
+        </div>
 
-    async function connectBluetooth() {
-      try {
-        const options = {
-          filters: [
-            { namePrefix: "HC" },
-            { namePrefix: "ESP" }
-          ],
-          optionalServices: ['battery_service', 'device_information']
+        <div class="data-panel">
+            <div class="data-row">
+                <span class="data-label">Tare Weight</span>
+                <span class="data-value" id="tareValue">0.00 kg</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">Gross Weight</span>
+                <span class="data-value" id="grossValue">0.00 kg</span>
+            </div>
+            <div class="data-row">
+                <span class="data-label">Current Weight</span>
+                <span class="data-value" id="weightValue">0.00 kg</span>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-primary" id="btnConnect">Connect</button>
+            <button class="btn btn-secondary" id="btnReport">Report</button>
+            <button class="btn" id="btnTare" disabled>Set Tare</button>
+            <button class="btn" id="btnGross" disabled>Set Gross</button>
+        </div>
+
+        <div class="alert" id="leakAlert">
+            Gas Leak Detected!
+        </div>
+    </div>
+
+    <script>
+        const UUIDs = {
+            service: '00001101-0000-1000-8000-00805f9b34fb',
+            characteristic: '00001101-0000-1000-8000-00805f9b34fb'
         };
 
-        device = await navigator.bluetooth.requestDevice(options);
-        document.getElementById('deviceName').textContent = `Device: ${device.name || "Unnamed Device"}`;
-        // Simulating connection logic
-        console.log("Connected to:", device.name);
+        let bluetooth = {
+            device: null,
+            characteristic: null,
+            connected: false
+        };
 
-        // Simulate receiving data every 5 seconds
-        setInterval(mockReceiveData, 5000);
-      } catch (error) {
-        console.error("Bluetooth connection failed:", error);
-      }
-    }
+        let readings = [];
+        const MAX_READINGS = 10;
 
-    function setTareWeight() {
-      tareWeight = prompt("Enter current weight as tare (empty cylinder):");
-      tareWeight = parseFloat(tareWeight);
-      if (!isNaN(tareWeight)) {
-        alert(`Tare weight set to ${tareWeight} kg`);
-      } else {
-        alert("Invalid input");
-      }
-    }
+        // DOM Elements
+        const elements = {
+            connectBtn: document.getElementById('btnConnect'),
+            tareBtn: document.getElementById('btnTare'),
+            grossBtn: document.getElementById('btnGross'),
+            reportBtn: document.getElementById('btnReport'),
+            leakAlert: document.getElementById('leakAlert'),
+            percentageValue: document.getElementById('percentageValue'),
+            tareValue: document.getElementById('tareValue'),
+            grossValue: document.getElementById('grossValue'),
+            weightValue: document.getElementById('weightValue'),
+            gaugeFill: document.getElementById('gaugeFill'),
+            sensorStatus: document.querySelector('.sensor-status')
+        };
 
-    function mockReceiveData() {
-      // Simulating random weight and gas detection values
-      const rawWeight = Math.random() * fullWeight; // random weight
-      const gasDetected = Math.random() < 0.1; // 10% chance of leak
+        // Event Listeners
+        elements.connectBtn.addEventListener('click', connectBluetooth);
+        elements.tareBtn.addEventListener('click', () => sendCommand('TARE'));
+        elements.grossBtn.addEventListener('click', () => sendCommand('GROSS'));
+        elements.reportBtn.addEventListener('click', generatePDF);
 
-      const netWeight = rawWeight - tareWeight;
-      const percentage = Math.max(0, Math.min(100, (netWeight / fullWeight) * 100));
+        async function connectBluetooth() {
+            try {
+                bluetooth.device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'HC-05' }],
+                    optionalServices: [UUIDs.service]
+                });
 
-      document.getElementById('weightDisplay').textContent = `Weight: ${netWeight.toFixed(2)} kg`;
-      document.getElementById('percentageDisplay').textContent = `LPG Remaining: ${percentage.toFixed(0)}%`;
+                const server = await bluetooth.device.gatt.connect();
+                const service = await server.getPrimaryService(UUIDs.service);
+                bluetooth.characteristic = await service.getCharacteristic(UUIDs.characteristic);
 
-      let statusEl = document.getElementById('leakStatus');
-      if (gasDetected) {
-        statusEl.textContent = "Leak Status: Gas Leak Detected!";
-        statusEl.className = 'status alert';
-      } else if (percentage < 5) {
-        statusEl.textContent = "Leak Status: Gas less than 5%!";
-        statusEl.className = 'status alert';
-      } else if (percentage < 15) {
-        statusEl.textContent = "Leak Status: Gas less than 15%";
-        statusEl.className = 'status warning';
-      } else if (percentage < 30) {
-        statusEl.textContent = "Leak Status: Gas less than 30%";
-        statusEl.className = 'status warning';
-      } else {
-        statusEl.textContent = "Leak Status: Safe";
-        statusEl.className = 'status safe';
-      }
-    }
+                updateConnectionState(true);
+                setupNotifications();
+                alert('Connected successfully!');
 
-    function generatePDF() {
-      const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text("LPG Monitoring Report", 20, 20);
-      doc.setFontSize(12);
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert(`Connection failed: ${error.message}`);
+                updateConnectionState(false);
+            }
+        }
 
-      const device = document.getElementById('deviceName').textContent;
-      const weight = document.getElementById('weightDisplay').textContent;
-      const percentage = document.getElementById('percentageDisplay').textContent;
-      const status = document.getElementById('leakStatus').textContent;
+        function updateConnectionState(connected) {
+            bluetooth.connected = connected;
+            elements.tareBtn.disabled = !connected;
+            elements.grossBtn.disabled = !connected;
+            elements.connectBtn.textContent = connected ? "Connected" : "Connect";
+            document.querySelector('.bluetooth-status').classList.toggle('active', connected);
+        }
 
-      doc.text(device, 20, 40);
-      doc.text(weight, 20, 50);
-      doc.text(percentage, 20, 60);
-      doc.text(status, 20, 70);
+        async function setupNotifications() {
+            await bluetooth.characteristic.startNotifications();
+            bluetooth.characteristic.addEventListener('characteristicvaluechanged', event => {
+                const decoder = new TextDecoder();
+                const rawData = decoder.decode(event.target.value);
+                processData(rawData);
+            });
+        }
 
-      doc.save("LPG_Report.pdf");
-    }
-  </script>
+        function processData(rawData) {
+            try {
+                const data = parseData(rawData);
+                if (!data) return;
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+                updateDisplay(data);
+                storeReading(data);
+                updateSensorStatus(true);
+                
+                if (data.LEAK) showLeakAlert();
+
+            } catch (error) {
+                console.error('Data processing error:', error);
+                updateSensorStatus(false);
+            }
+        }
+
+        function parseData(rawData) {
+            const cleanData = rawData.trim();
+            const parts = cleanData.split(',');
+            
+            return {
+                TARE: parseFloat(parts[0].split(':')[1]),
+                GROSS: parseFloat(parts[1].split(':')[1]),
+                WEIGHT: parseFloat(parts[2].split(':')[1]),
+                PERCENTAGE: Math.min(100, Math.max(0, parseFloat(parts[3].split(':')[1]))),
+                LEAK: parseInt(parts[4].split(':')[1])
+            };
+        }
+
+        function updateDisplay(data) {
+            const rotation = -90 + (data.PERCENTAGE * 1.8);
+            elements.gaugeFill.style.transform = `rotate(${rotation}deg)`;
+            elements.percentageValue.textContent = `${data.PERCENTAGE.toFixed(0)}%`;
+            elements.tareValue.textContent = `${data.TARE.toFixed(2)} kg`;
+            elements.grossValue.textContent = `${data.GROSS.toFixed(2)} kg`;
+            elements.weightValue.textContent = `${data.WEIGHT.toFixed(2)} kg`;
+        }
+
+        function updateSensorStatus(active) {
+            elements.sensorStatus.classList.toggle('active', active);
+        }
+
+        function storeReading(data) {
+            readings.push({
+                timestamp: new Date(),
+                ...data
+            });
+            if (readings.length > MAX_READINGS) readings.shift();
+        }
+
+        function showLeakAlert() {
+            elements.leakAlert.classList.add('active');
+            setTimeout(() => elements.leakAlert.classList.remove('active'), 5000);
+        }
+
+        async function sendCommand(command) {
+            if (!bluetooth.connected) {
+                alert("Please connect first!");
+                return;
+            }
+            try {
+                const encoder = new TextEncoder();
+                await bluetooth.characteristic.writeValue(encoder.encode(`${command}\n`));
+                alert(`Command "${command}" sent successfully!`);
+            } catch (error) {
+                alert(`Command failed: ${error.message}`);
+            }
+        }
+
+        function generatePDF() {
+            if (readings.length === 0) {
+                alert("No data available!");
+                return;
+            }
+
+            const doc = new jspdf.jsPDF();
+            doc.setFontSize(18);
+            doc.text('LPG Usage Report', 20, 20);
+            doc.setFontSize(12);
+            
+            readings.forEach((reading, index) => {
+                const y = 30 + (index * 10);
+                doc.text(
+                    `${reading.timestamp.toLocaleString()}: ${reading.WEIGHT.toFixed(2)}kg (${reading.PERCENTAGE.toFixed(1)}%)`,
+                    20, y
+                );
+            });
+            
+            doc.save('lpg_report.pdf');
+            alert('Report generated!');
+        }
+    </script>
 </body>
 </html>
