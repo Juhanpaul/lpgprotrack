@@ -3,14 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LPGProTrack</title>
+    <title>LPGProTrack AI ✨</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
             --primary: #00ff88;
             --secondary: #00c3ff;
+            --gemini: #8E44AD; /* Purple for AI features */
             --background: #0a192f;
             --surface: #1a1a1a;
+            --alert-color: #ff4444;
         }
         body {
             font-family: 'Inter', sans-serif;
@@ -19,10 +24,13 @@
             margin: 0;
             padding: 1rem;
             min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .container {
             max-width: 400px;
-            margin: 0 auto;
+            width: 100%;
             background: var(--surface);
             border-radius: 20px;
             padding: 2rem;
@@ -50,9 +58,9 @@
             background: var(--primary);
             box-shadow: 0 0 8px var(--primary);
         }
-        .sensor-status.active {
-            background: var(--secondary);
-            box-shadow: 0 0 8px var(--secondary);
+        .sensor-status.alert {
+            background: var(--alert-color);
+            box-shadow: 0 0 8px var(--alert-color);
         }
         .gauge-container {
             width: 200px;
@@ -95,6 +103,7 @@
             font-size: 1.8rem;
             font-weight: bold;
             color: var(--primary);
+            transition: color 0.3s ease;
         }
         .data-panel {
             background: rgba(255,255,255,0.05);
@@ -119,7 +128,7 @@
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 1rem;
-            margin-top: 2rem;
+            margin-top: 1rem;
         }
         .btn {
             padding: 1rem;
@@ -130,39 +139,98 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            font-size: 0.9rem;
         }
-        .btn-primary {
-            background: var(--primary);
-            color: #000;
+        .btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            color: #777;
         }
-        .btn-secondary {
-            background: var(--secondary);
-            color: #000;
-        }
-        .alert {
+        .btn-primary { background: var(--primary); color: #000; }
+        .btn-secondary { background: var(--secondary); color: #000; }
+        .btn-gemini { background: var(--gemini); color: white; }
+        .btn-alert { background: var(--alert-color); color: white; font-weight: bold; grid-column: 1 / -1; margin-top: 1rem; display: none; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        
+        /* Modal Styles */
+        .modal-overlay {
             position: fixed;
-            top: 1rem;
-            right: -100%;
-            background: #ff4444;
-            color: white;
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            transition: right 0.4s ease;
-            display: none;
-        }
-        .alert.active {
-            right: 1rem;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
             display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--gemini);
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .modal-body {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.9);
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(255,255,255,0.2);
+            border-left-color: var(--gemini);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>LPGProTrack</h1>
+            <h1>LPGProTrack ✨</h1>
             <div class="status-indicators">
-                <div class="indicator bluetooth-status"></div>
-                <div class="indicator sensor-status"></div>
+                <div class="indicator bluetooth-status" title="Bluetooth Connection"></div>
+                <div class="indicator sensor-status" title="Gas Sensor Status"></div>
             </div>
         </div>
 
@@ -177,196 +245,254 @@
         <div class="data-panel">
             <div class="data-row">
                 <span class="data-label">Tare Weight</span>
-                <span class="data-value" id="tareValue">0.00 kg</span>
+                <span class="data-value" id="tareValue">-- kg</span>
             </div>
             <div class="data-row">
-                <span class="data-label">Gross Weight</span>
-                <span class="data-value" id="grossValue">0.00 kg</span>
+                <span class="data-label">Net Weight</span>
+                <span class="data-value" id="netValue">-- kg</span>
             </div>
             <div class="data-row">
                 <span class="data-label">Current Weight</span>
-                <span class="data-value" id="weightValue">0.00 kg</span>
+                <span class="data-value" id="weightValue">-- kg</span>
             </div>
         </div>
 
         <div class="button-group">
             <button class="btn btn-primary" id="btnConnect">Connect</button>
-            <button class="btn btn-secondary" id="btnReport">Report</button>
-            <button class="btn" id="btnTare" disabled>Set Tare</button>
+            <button class="btn" id="btnNet" disabled>Set Net</button>
             <button class="btn" id="btnGross" disabled>Set Gross</button>
+            <button class="btn btn-secondary" id="btnReport" disabled>Report</button>
         </div>
+        <div class="button-group">
+             <button class="btn btn-gemini" id="btnAnalyze" disabled>✨ Analyze Usage</button>
+        </div>
+        <button class="btn btn-alert" id="btnSafety">✨ Get Safety Steps</button>
+    </div>
 
-        <div class="alert" id="leakAlert">
-            Gas Leak Detected!
+    <!-- Gemini Modal -->
+    <div class="modal-overlay" id="geminiModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">AI Assistant</h2>
+                <button class="modal-close" id="modalCloseBtn">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be injected by JavaScript -->
+            </div>
         </div>
     </div>
 
     <script>
-        const UUIDs = {
-            service: '00001101-0000-1000-8000-00805f9b34fb',
-            characteristic: '00001101-0000-1000-8000-00805f9b34fb'
-        };
-
-        let bluetooth = {
-            device: null,
-            characteristic: null,
-            connected: false
-        };
-
+        // --- Bluetooth and App Logic (Existing) ---
+        const SPP_SERVICE_UUID = '00001101-0000-1000-8000-00805f9b34fb';
+        let esp32Device, esp32Characteristic, isConnected = false, receivedDataBuffer = '';
         let readings = [];
-        const MAX_READINGS = 10;
+        const MAX_READINGS = 50; // Increased for better analysis
 
         const elements = {
             connectBtn: document.getElementById('btnConnect'),
-            tareBtn: document.getElementById('btnTare'),
+            netBtn: document.getElementById('btnNet'),
             grossBtn: document.getElementById('btnGross'),
             reportBtn: document.getElementById('btnReport'),
-            leakAlert: document.getElementById('leakAlert'),
             percentageValue: document.getElementById('percentageValue'),
             tareValue: document.getElementById('tareValue'),
-            grossValue: document.getElementById('grossValue'),
+            netValue: document.getElementById('netValue'),
             weightValue: document.getElementById('weightValue'),
             gaugeFill: document.getElementById('gaugeFill'),
-            sensorStatus: document.querySelector('.sensor-status')
+            bluetoothStatus: document.querySelector('.bluetooth-status'),
+            sensorStatus: document.querySelector('.sensor-status'),
+            // New Gemini Elements
+            analyzeBtn: document.getElementById('btnAnalyze'),
+            safetyBtn: document.getElementById('btnSafety'),
+            geminiModal: document.getElementById('geminiModal'),
+            modalTitle: document.getElementById('modalTitle'),
+            modalBody: document.getElementById('modalBody'),
+            modalCloseBtn: document.getElementById('modalCloseBtn')
         };
 
-        elements.connectBtn.addEventListener('click', connectBluetooth);
-        elements.tareBtn.addEventListener('click', () => sendCommand('TARE'));
-        elements.grossBtn.addEventListener('click', () => sendCommand('GROSS'));
-        elements.reportBtn.addEventListener('click', generatePDF);
+        // --- Gemini API Configuration ---
+        const API_KEY = ""; // IMPORTANT: LEAVE THIS EMPTY. It will be handled by the environment.
 
-        // Updated connectBluetooth function
-        async function connectBluetooth() {
+        // --- Event Listeners ---
+        elements.connectBtn.addEventListener('click', toggleBluetoothConnection);
+        elements.netBtn.addEventListener('click', () => setWeight('NET'));
+        elements.grossBtn.addEventListener('click', () => setWeight('GROSS'));
+        elements.reportBtn.addEventListener('click', generatePDF);
+        elements.analyzeBtn.addEventListener('click', handleAnalysisClick);
+        elements.safetyBtn.addEventListener('click', handleSafetyStepsClick);
+        elements.modalCloseBtn.addEventListener('click', hideModal);
+        elements.geminiModal.addEventListener('click', (e) => {
+            if (e.target === elements.geminiModal) hideModal();
+        });
+
+        // --- Gemini API Functions ---
+        async function callGeminiAPI(prompt) {
+            showLoadingModal("✨ Thinking...");
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+            
+            const payload = {
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            };
+
             try {
-                bluetooth.device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: [UUIDs.service]
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
 
-                const server = await bluetooth.device.gatt.connect();
-                const service = await server.getPrimaryService(UUIDs.service);
-                bluetooth.characteristic = await service.getCharacteristic(UUIDs.characteristic);
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.statusText}`);
+                }
 
+                const data = await response.json();
+                if (data.candidates && data.candidates.length > 0) {
+                    const text = data.candidates[0].content.parts[0].text;
+                    return text.replace(/\n/g, '<br>'); // Format for HTML
+                } else {
+                    return "Sorry, I couldn't generate a response. Please try again.";
+                }
+            } catch (error) {
+                console.error("Gemini API call failed:", error);
+                return `An error occurred: ${error.message}. Please ensure you have a valid internet connection.`;
+            }
+        }
+
+        async function handleSafetyStepsClick() {
+            const prompt = "A gas leak from a home LPG cylinder has been detected. Provide a clear, numbered list of immediate safety steps to take. Be concise, direct, and start with the most critical actions. Use bold text for key actions.";
+            const response = await callGeminiAPI(prompt);
+            showModal("🚨 Immediate Safety Steps", response);
+        }
+
+        async function handleAnalysisClick() {
+            if (readings.length < 5) {
+                alert("Not enough data to analyze. Please wait for more readings.");
+                return;
+            }
+            const usageData = readings.map(r => `At ${r.timestamp.toLocaleTimeString()}, level was ${r.percentage.toFixed(1)}%`).join('\n');
+            const prompt = `I am monitoring my home LPG cylinder. Here are some recent readings:\n${usageData}\n\nBased on this usage pattern, please provide:\n1. An estimation of when the cylinder might run out.\n2. Three practical, personalized tips for reducing my LPG consumption.`;
+            const response = await callGeminiAPI(prompt);
+            showModal("📈 Usage Analysis", response);
+        }
+
+        // --- Modal Helper Functions ---
+        function showModal(title, content) {
+            elements.modalTitle.textContent = title;
+            elements.modalBody.innerHTML = content;
+            elements.geminiModal.classList.add('active');
+        }
+
+        function showLoadingModal(title) {
+            elements.modalTitle.textContent = title;
+            elements.modalBody.innerHTML = '<div class="loading-spinner"></div>';
+            elements.geminiModal.classList.add('active');
+        }
+
+        function hideModal() {
+            elements.geminiModal.classList.remove('active');
+        }
+
+        // --- Existing Bluetooth Functions (Modified to integrate new features) ---
+        async function connectBluetooth() {
+            try {
+                console.log('Requesting Bluetooth device...');
+                esp32Device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'LPGProTrack_ESP32' }],
+                    optionalServices: [SPP_SERVICE_UUID]
+                });
+                const server = await esp32Device.gatt.connect();
+                const service = await server.getPrimaryService(SPP_SERVICE_UUID);
+                esp32Characteristic = await service.getCharacteristic(SPP_SERVICE_UUID);
+                await esp32Characteristic.startNotifications();
+                esp32Characteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+                esp32Device.addEventListener('gattserverdisconnected', onDisconnected);
                 updateConnectionState(true);
-                setupNotifications();
-                alert('Connected successfully!');
-
             } catch (error) {
                 console.error('Connection error:', error);
                 alert(`Connection failed: ${error.message}`);
                 updateConnectionState(false);
             }
         }
+        
+        function onDisconnected() {
+            console.log('Device disconnected.');
+            updateConnectionState(false);
+        }
 
         function updateConnectionState(connected) {
-            bluetooth.connected = connected;
-            elements.tareBtn.disabled = !connected;
+            isConnected = connected;
+            elements.netBtn.disabled = !connected;
             elements.grossBtn.disabled = !connected;
-            elements.connectBtn.textContent = connected ? "Connected" : "Connect";
-            document.querySelector('.bluetooth-status').classList.toggle('active', connected);
-        }
-
-        async function setupNotifications() {
-            await bluetooth.characteristic.startNotifications();
-            bluetooth.characteristic.addEventListener('characteristicvaluechanged', event => {
-                const decoder = new TextDecoder();
-                const rawData = decoder.decode(event.target.value);
-                processData(rawData);
-            });
-        }
-
-        function processData(rawData) {
-            try {
-                const data = parseData(rawData);
-                if (!data) return;
-
-                updateDisplay(data);
-                storeReading(data);
-                updateSensorStatus(true);
-
-                if (data.LEAK) showLeakAlert();
-
-            } catch (error) {
-                console.error('Data processing error:', error);
-                updateSensorStatus(false);
+            elements.reportBtn.disabled = !connected;
+            elements.analyzeBtn.disabled = !connected;
+            elements.connectBtn.textContent = connected ? "Disconnect" : "Connect";
+            elements.bluetoothStatus.classList.toggle('active', connected);
+            if (!connected) {
+                elements.sensorStatus.classList.remove('active', 'alert');
+                elements.safetyBtn.style.display = 'none';
             }
         }
 
-        function parseData(rawData) {
-            const cleanData = rawData.trim();
-            const parts = cleanData.split(',');
+        function handleNotifications(event) {
+            const value = event.target.value;
+            const decoder = new TextDecoder();
+            const chunk = decoder.decode(value);
+            receivedDataBuffer += chunk;
+            while (receivedDataBuffer.includes('\n')) {
+                const lineEnd = receivedDataBuffer.indexOf('\n');
+                const line = receivedDataBuffer.substring(0, lineEnd);
+                receivedDataBuffer = receivedDataBuffer.substring(lineEnd + 1);
+                if (line.trim().length > 0) processDataPacket(line);
+            }
+        }
 
-            return {
-                TARE: parseFloat(parts[0].split(':')[1]),
-                GROSS: parseFloat(parts[1].split(':')[1]),
-                WEIGHT: parseFloat(parts[2].split(':')[1]),
-                PERCENTAGE: Math.min(100, Math.max(0, parseFloat(parts[3].split(':')[1]))),
-                LEAK: parseInt(parts[4].split(':')[1])
-            };
+        function processDataPacket(packet) {
+            if (packet.startsWith("MESSAGE:")) {
+                alert(packet.substring(8));
+                return;
+            }
+            try {
+                const data = parseData(packet);
+                updateDisplay(data);
+                storeReading(data);
+            } catch (error) {
+                console.error('Data processing error:', error, "on packet:", packet);
+            }
+        }
+
+        function parseData(packet) {
+            const parts = packet.split(',');
+            const data = {};
+            parts.forEach(part => {
+                const [key, value] = part.split(':');
+                if (key && value) data[key.trim()] = parseFloat(value);
+            });
+            return { p: data.p || 0, w: data.w || 0, g: data.g || 0, t: data.t || 0, n: data.n || 0 };
         }
 
         function updateDisplay(data) {
-            const rotation = -90 + (data.PERCENTAGE * 1.8);
+            const percentage = Math.min(100, Math.max(0, data.p));
+            const rotation = -90 + (percentage * 1.8);
             elements.gaugeFill.style.transform = `rotate(${rotation}deg)`;
-            elements.percentageValue.textContent = `${data.PERCENTAGE.toFixed(0)}%`;
-            elements.tareValue.textContent = `${data.TARE.toFixed(2)} kg`;
-            elements.grossValue.textContent = `${data.GROSS.toFixed(2)} kg`;
-            elements.weightValue.textContent = `${data.WEIGHT.toFixed(2)} kg`;
+            elements.percentageValue.textContent = `${percentage.toFixed(0)}%`;
+            elements.weightValue.textContent = `${data.w.toFixed(2)} kg`;
+            elements.tareValue.textContent = data.t > 0 ? `${data.t.toFixed(2)} kg` : '-- kg';
+            elements.netValue.textContent = data.n > 0 ? `${data.n.toFixed(2)} kg` : '-- kg';
+            elements.sensorStatus.classList.add('active');
+            elements.sensorStatus.classList.toggle('alert', data.g === 1);
+            // Show or hide safety button based on gas leak status
+            elements.safetyBtn.style.display = data.g === 1 ? 'block' : 'none';
         }
 
-        function updateSensorStatus(active) {
-            elements.sensorStatus.classList.toggle('active', active);
-        }
-
-        function storeReading(data) {
-            readings.push({
-                timestamp: new Date(),
-                ...data
-            });
-            if (readings.length > MAX_READINGS) readings.shift();
-        }
-
-        function showLeakAlert() {
-            elements.leakAlert.classList.add('active');
-            setTimeout(() => elements.leakAlert.classList.remove('active'), 5000);
-        }
-
-        async function sendCommand(command) {
-            if (!bluetooth.connected) {
-                alert("Please connect first!");
-                return;
-            }
-            try {
-                const encoder = new TextEncoder();
-                await bluetooth.characteristic.writeValue(encoder.encode(`${command}\n`));
-                alert(`Command "${command}" sent successfully!`);
-            } catch (error) {
-                alert(`Command failed: ${error.message}`);
-            }
-        }
-
-        function generatePDF() {
-            if (readings.length === 0) {
-                alert("No data available!");
-                return;
-            }
-
-            const doc = new jspdf.jsPDF();
-            doc.setFontSize(18);
-            doc.text('LPG Usage Report', 20, 20);
-            doc.setFontSize(12);
-
-            readings.forEach((reading, index) => {
-                const y = 30 + (index * 10);
-                doc.text(
-                    `${reading.timestamp.toLocaleString()}: ${reading.WEIGHT.toFixed(2)}kg (${reading.PERCENTAGE.toFixed(1)}%)`,
-                    20, y
-                );
-            });
-
-            doc.save('lpg_report.pdf');
-            alert('Report generated!');
-        }
+        // --- Unchanged Functions ---
+        async function toggleBluetoothConnection() { if (isConnected) disconnectBluetooth(); else connectBluetooth(); }
+        function disconnectBluetooth() { if (esp32Device && esp32Device.gatt.connected) esp32Device.gatt.disconnect(); else onDisconnected(); }
+        function storeReading(data) { readings.push({ timestamp: new Date(), percentage: data.p, weight: data.w, leak: data.g }); if (readings.length > MAX_READINGS) readings.shift(); }
+        async function setWeight(type) { const value = prompt(`Enter ${type} weight in kg:`); if (value !== null && !isNaN(parseFloat(value))) { const command = `${type}:${parseFloat(value)}\n`; await sendCommand(command); } else { alert("Invalid input. Please enter a number."); } }
+        async function sendCommand(command) { if (!isConnected || !esp32Characteristic) { alert("Not connected!"); return; } try { const encoder = new TextEncoder(); await esp32Characteristic.writeValue(encoder.encode(command)); } catch (error) { console.error('Send command error:', error); alert(`Failed to send command: ${error.message}`); } }
+        function generatePDF() { if (readings.length === 0) { alert("No data available to generate a report!"); return; } const { jsPDF } = window.jspdf; const doc = new jsPDF(); doc.setFontSize(18); doc.text('LPG Usage Report', 20, 20); doc.setFontSize(12); let y = 30; readings.forEach(reading => { const text = `${reading.timestamp.toLocaleString()}: ${reading.weight.toFixed(2)}kg (${reading.percentage.toFixed(1)}%) ${reading.leak ? ' - LEAK!' : ''}`; doc.text(text, 20, y); y += 10; }); doc.save('LPGProTrack_Report.pdf'); }
     </script>
 </body>
 </html>
